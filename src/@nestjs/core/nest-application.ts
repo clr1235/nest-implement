@@ -4,6 +4,7 @@ import express, { Express, NextFunction, Request as ExpressRequest, Response as 
 import { defineModule, DESIGN_PARAMTYPES, GlobalHttpExceptionFilter, INJECTED_TOKENS } from '@nestjs/common'
 import { RequestMethod } from '../common/request.method.enum'
 import { ArgumentsHost } from '@nestjs/common'
+import { APP_FILTER } from './constants'
 
 export class NestApplication {
   // 现在内部私有化一个Express实例
@@ -33,11 +34,13 @@ export class NestApplication {
     // 使用express的中间件
     this.app.use(express.json()) // 用来把JSON格式的请求体对象放在req.body中
     this.app.use(express.urlencoded({ extended: true })) // 把form表单格式的请求体对象放在req.body中
-
+    
   }
 
   // 全局异常过滤器
   useGlobalFilters(...filters) {
+    // 过滤出类 的过滤器，给每个过滤器绑定所属模块元数据
+    defineModule(this.module, filters.filter(it => it instanceof Function));
     this.globalHttpExceptionFilters.push(...filters)
   }
 
@@ -258,7 +261,7 @@ export class NestApplication {
   private addProvider(provider, module, global = false) {
     // 此处的providers代表，module这个模块对应的provider的token
     const providers = global ? this.globalProviders : this.moduleProviders.get(module) || new Set()
-    if (!this.moduleProviders.has(module)) {
+    if(!global) {
       this.moduleProviders.set(module, providers)
     }
 
@@ -361,6 +364,8 @@ export class NestApplication {
       const controllerPrototype = Controller.prototype
       // 获取控制器上绑定的过滤器数组
       const controllerFilters = Reflect.getMetadata('useFilters', Controller) ?? []
+      // 给过滤器绑定所属模块元数据
+      defineModule(this.module, controllerFilters);
       for (const methodName of Object.getOwnPropertyNames(controllerPrototype)) {
         // 从原型上拿到方法 即在AppController中定义的index方法
         const method = controllerPrototype[methodName]
@@ -377,7 +382,7 @@ export class NestApplication {
         const headers = Reflect.getMetadata('headers', method) || []
         // 获取方法上绑定的异常过滤器数组
         const methodFilters = Reflect.getMetadata('useFilters', method) ?? []
-
+        defineModule(this.module, methodFilters);
         // 如果方法名不存在，则不处理
         if (!httpMethod) continue
         // 执行方法,即 this.app.get('/info', () => {})
@@ -519,12 +524,25 @@ export class NestApplication {
     return paramsMetadata.filter(Boolean).find(param => ['Response', 'Res', 'Next'].includes(param.key))
   }
 
+  private async initGlobalFilters() {
+    const providers = Reflect.getMetadata('providers', this.module) || []
+    for (const provider of providers) {
+      if (provider.provide === APP_FILTER) {
+        const providerInstance = this.getProviderByToken(APP_FILTER, this.module)
+        this.useGlobalFilters(providerInstance)
+      }
+
+    }
+  }
+
   // 启动http服务器
   async listen(port) {
     // 注册providers
     await this.initProviders()
     // 创建应用时初始化中间件
     await this.initMiddlewares()
+    // 初始化全局异常过滤器
+    await this.initGlobalFilters()
     await this.init();
     // 调用express实例的listen方法，启动一个http服务，监听port端口
     this.app.listen(port, () => {
