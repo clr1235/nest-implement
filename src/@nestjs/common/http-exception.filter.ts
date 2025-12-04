@@ -22,6 +22,7 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       // 未识别的异常
       return response.status(500).json({
         statusCode: 500,
+        error: exception.message,
         message: 'Internal server error',
       })
     }

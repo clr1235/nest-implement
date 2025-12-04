@@ -1,10 +1,12 @@
 import path from 'path'
 import { Logger } from './logger'
 import express, { Express, NextFunction, Request as ExpressRequest, Response as ExpressResponse } from 'express'
-import { defineModule, DESIGN_PARAMTYPES, GlobalHttpExceptionFilter, INJECTED_TOKENS } from '@nestjs/common'
+import { defineModule,  } from '../common/module.decorator'
 import { RequestMethod } from '../common/request.method.enum'
-import { ArgumentsHost } from '@nestjs/common'
+import { ArgumentsHost } from '../common/arguments-host.interface'
 import { APP_FILTER } from './constants'
+import {GlobalHttpExceptionFilter} from '../common/http-exception.filter'
+import {INJECTED_TOKENS, DESIGN_PARAMTYPES} from '../common'
 
 export class NestApplication {
   // 现在内部私有化一个Express实例
@@ -115,6 +117,8 @@ export class NestApplication {
         })
       }
     }
+    // 注意每次清空
+    this.middlewares.length = 0
     return this
   }
   private normalizeRouteInfo(route) {
