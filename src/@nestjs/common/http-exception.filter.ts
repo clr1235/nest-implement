@@ -7,6 +7,10 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
   catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp()
     const response = ctx.getResponse<Response>()
+    // 如果此响应已经发送完给客户端，那么就不应该再发送
+    if (response.headersSent) {
+      return
+    }
     if (exception instanceof HttpException) {
       const responseEx: any = exception.getResponse()
       const status:any = exception.getStatus()

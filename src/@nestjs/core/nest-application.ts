@@ -254,6 +254,7 @@ export class NestApplication {
     for (const provider of importedProviders) {
       this.addProvider(provider, module, global)
     }
+    this.initController(module)
   }
 
   private isModule(token: any) {
@@ -346,9 +347,9 @@ export class NestApplication {
   }
 
   // 初始化工作（重点）
-  async init() {
+  async initController(module) {
     // 取出模块中所有的控制器，然后做好路由配置
-    const controlers = Reflect.getMetadata('controllers', this.module) || []
+    const controlers = Reflect.getMetadata('controllers', module) || []
     // console.log(controlers, 'controllers====')
     Logger.log(`AppModule dependenceies initialzed`, 'InstanceLoader')
     // 循环处理控制器
@@ -547,7 +548,8 @@ export class NestApplication {
     await this.initMiddlewares()
     // 初始化全局异常过滤器
     await this.initGlobalFilters()
-    await this.init();
+    // 初始化控制器
+    await this.initController(this.module);
     // 调用express实例的listen方法，启动一个http服务，监听port端口
     this.app.listen(port, () => {
       Logger.log(`Application is runnning on http://localhost:${port}`, 'NestApplication')
