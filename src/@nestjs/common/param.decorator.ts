@@ -4,7 +4,7 @@ export const createParamDecorator = (keyOrFactory:string | Function) => {
   // target: 控制器原型
   // propertyKey: 方法名 handleRequest
   // parameterIndex: 索引,先走1再走0
-  return (data?:any) => (target:any, propertyKey:string, parameterIndex:number) => {
+  return (data?:any, ...pipes:any[]) => (target:any, propertyKey:string, parameterIndex:number) => {
     // console.log(target, propertyKey, parameterIndex)
     // 给控制器类的原型的propertyKey也就是handleRequest方法的属性上添加元数据
     // 属性名为params,handleRequest的属性值是一个数组
@@ -12,10 +12,10 @@ export const createParamDecorator = (keyOrFactory:string | Function) => {
     const existingParameters = Reflect.getMetadata('params', target, propertyKey)??[]
     if (typeof keyOrFactory === 'function') {
       // 如果传过来的是函数，则key写死为DecoratorFactory，factory为传过来的函数，
-      existingParameters[parameterIndex] = {parameterIndex, key: 'DecoratorFactory', factory: keyOrFactory, data}
+      existingParameters[parameterIndex] = {parameterIndex, key: 'DecoratorFactory', factory: keyOrFactory, data, pipes}
     } else {
       // key就是装饰器名字
-      existingParameters[parameterIndex] = {parameterIndex, key: keyOrFactory, data}
+      existingParameters[parameterIndex] = {parameterIndex, key: keyOrFactory, data, pipes}
     }
     
     

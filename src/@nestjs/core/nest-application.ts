@@ -405,7 +405,7 @@ export class NestApplication {
           try {
             console.log(req.url, 'req=====回调')
             // 执行方法时将参数拿过来
-            const args = this.resolveParams(controller, methodName, req, res, next, host)
+            const args = await this.resolveParams(controller, methodName, req, res, next, host)
             // 执行方法
             const result = method.call(controller, ...args)
             // 如果返回结果有url属性，则重定向
@@ -480,48 +480,62 @@ export class NestApplication {
     const paramsMetadata = Reflect.getMetadata('params', instance, methodName) ?? []
     console.log(paramsMetadata, 'paramsMetadata==jo', instance, methodName)
     // 
-    return paramsMetadata.map((paramMetadata) => {
-      const { key, data, factory } = paramMetadata
-      // switchToHttp是因为nestjs支持http、微服务、graphql等协议，不同协议下的请求对象不同，
-      // 所以需要switchToHttp来切换到当前请求的协议下的请求对象
-      // const ctx = {
-      //   switchToHttp: () => ({
-      //     getRequest: () => req,
-      //     getResponse: () => res,
-      //     getNext: () => next,
-      //   }),
-      // }
-
+    return Promise.all(paramsMetadata.map(async (paramMetadata) => {
+      const { key, data, factory, pipes } = paramMetadata
+      
+      let value;
       switch (key) {
         case 'Request':
         case 'Req':
-          return req
+          value = req
+          break;
         case 'Query':
-          return data ? req.query[data] : req.query
+          value = data ? req.query[data] : req.query
+          break;
         case 'Headers':
-          return data ? req.headers[data] : req.headers
+          value = data ? req.headers[data] : req.headers
+          break;
         case 'Session':
-          return data ? (req as any).session?.[data] : (req as any).session
+          value = data ? (req as any).session?.[data] : (req as any).session
+          break;
         case 'Ip':
-          return req.ip
+          value = req.ip  
+          break;
         case 'Param':
-          return data ? req.params[data] : req.params
+          value = data ? req.params[data] : req.params
+          break;
         case 'Body':
-          return data ? req.body[data] : req.body
-
+          value = data ? req.body[data] : req.body
+          break;
         case 'Response':
         case 'Res':
-          return res
+          value = res
         case 'Next':
-          return next
-
+          value = next
+          break;
         case 'DecoratorFactory':
-          return factory(data, host)
-
+          value = factory(data, host)
+          break;
         default:
-          return null
+          value = null
+          break;
       }
-    })
+      // 拿到值之后使用pipe进行处理
+      for (const pipe of [...pipes]) {
+        const pipeInstance = await this.getPipeInstance(pipe)
+        value = pipeInstance.transform(value)
+      }
+      return value
+    }))
+  }
+
+  private getPipeInstance(pipe) {
+    // 如果pipe是一个类，就创建一个实例并返回
+    if (pipe instanceof Function) {
+      const dependencies = this.resolveDependencies(pipe)
+      return new pipe(...dependencies)
+    }
+    return pipe
   }
 
   private getResponseMetadata(controller: any, methodName: string) {
